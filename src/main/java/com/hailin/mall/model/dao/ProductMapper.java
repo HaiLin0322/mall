@@ -16,4 +16,5 @@ public interface ProductMapper {
     int updateByPrimaryKeySelective(Product row);
 
     int updateByPrimaryKey(Product row);
+    Product selectByName(String name);
 }
