@@ -18,6 +18,8 @@ public class SpringFoxConfig {
                 .select().apis(RequestHandlerSelectors.any()).paths(PathSelectors.any()).build();
     }
     private ApiInfo apiInfo(){
-        return new ApiInfoBuilder().title("海林超市").description("").termsOfServiceUrl("").build();
+        return new ApiInfoBuilder().title("海林的小超市")//标题
+                .description("")//描述
+                .termsOfServiceUrl("").build();
     }
 }
