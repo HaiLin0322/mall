@@ -1,9 +1,7 @@
 package com.hailin.mall.service;
 
 import com.github.pagehelper.PageInfo;
-import com.hailin.mall.exception.HailinMallException;
 import com.hailin.mall.model.pojo.Product;
-import com.hailin.mall.model.pojo.User;
 import com.hailin.mall.model.request.AddProductReq;
 import com.hailin.mall.model.request.ProductListReq;
 //商品service
