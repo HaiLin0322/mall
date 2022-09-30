@@ -18,6 +18,8 @@ public enum HailinMallExceptionEnum {
     UPLOAD_FAILED(10015,"图片上传失败"),
     NOT_SALE(10016,"商品不可售"),
     NOT_ENOUGH(10017,"库存不足"),
+    CART_EMPTY(10018,"购物车已勾选商品为空"),
+    NO_ENUM(10019,"未找到对应枚举"),
     SYSTEM_ERROR(20000,"系统异常");
     Integer code;//异常码
     String msg;//异常信息
