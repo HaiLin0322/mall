@@ -3,6 +3,8 @@ package com.hailin.mall.model.dao;
 import com.hailin.mall.model.pojo.Order;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface OrderMapper {
     int deleteByPrimaryKey(Integer id);
@@ -16,4 +18,7 @@ public interface OrderMapper {
     int updateByPrimaryKeySelective(Order row);
 
     int updateByPrimaryKey(Order row);
+    Order selectByOrderNo(String orderNo);
+    List<Order> selectForCustomer(Integer userId);
+    List<Order> selectAllForAdmin();
 }

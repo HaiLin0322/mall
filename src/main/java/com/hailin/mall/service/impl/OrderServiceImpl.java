@@ -1,5 +1,8 @@
 package com.hailin.mall.service.impl;
 
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import com.google.zxing.WriterException;
 import com.hailin.mall.common.Constant;
 import com.hailin.mall.exception.HailinMallException;
 import com.hailin.mall.exception.HailinMallExceptionEnum;
@@ -13,15 +16,28 @@ import com.hailin.mall.model.pojo.OrderItem;
 import com.hailin.mall.model.pojo.Product;
 import com.hailin.mall.model.request.CreateOrderReq;
 import com.hailin.mall.model.vo.CartVO;
+import com.hailin.mall.model.vo.OrderItemVO;
+import com.hailin.mall.model.vo.OrderVO;
 import com.hailin.mall.service.CartService;
 import com.hailin.mall.service.OrderService;
+import com.hailin.mall.service.UserService;
 import com.hailin.mall.util.OrderCodeFactory;
+import com.hailin.mall.util.QRCodeGenerator;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 //订单service实现类
@@ -37,6 +53,10 @@ public class OrderServiceImpl implements OrderService {
     OrderMapper orderMapper;
     @Autowired
     OrderItemMapper orderItemMapper;
+    @Value("${file.upload.ip}")
+    String ip;
+    @Autowired
+    UserService userService;
     @Transactional(rollbackFor = Exception.class)//开启事务，遇到任何异常都会回滚
     @Override
     public String create(CreateOrderReq createOrderReq){
@@ -143,6 +163,163 @@ public class OrderServiceImpl implements OrderService {
             if (cartVO.getQuantity() > product.getStock()) {
                 throw new HailinMallException(HailinMallExceptionEnum.NOT_ENOUGH);
             }
+        }
+    }
+
+    @Override
+    public OrderVO detail(String orderNo){
+        Order order=orderMapper.selectByOrderNo(orderNo);
+        //订单不存在则报错
+        if (order == null) {
+            throw new HailinMallException(HailinMallExceptionEnum.NO_ORDER);
+        }
+        //订单存在则判断所属
+        Integer userId=UserFilter.currentUser.getId();
+        if (!order.getUserId().equals(userId)){
+            throw new HailinMallException(HailinMallExceptionEnum.NOT_YOUR_ORDER);
+        }
+        OrderVO orderVO=getOrderVO(order);
+        return orderVO;
+    }
+    private OrderVO getOrderVO(Order order) {
+        OrderVO orderVO=new OrderVO();
+        BeanUtils.copyProperties(order,orderVO);
+        //获取订单对应的orderItemVOList
+        List<OrderItem> orderItemList=orderItemMapper.selectByOrderNo(order.getOrderNo());
+        List<OrderItemVO> orderItemVOList=new ArrayList();
+        for (int i = 0; i < orderItemList.size(); i++) {
+            OrderItem orderItem = orderItemList.get(i);
+            OrderItemVO orderItemVO=new OrderItemVO();
+            BeanUtils.copyProperties(orderItem,orderItemVO);
+            orderItemVOList.add(orderItemVO);
+        }
+        orderVO.setOrderItemVOList(orderItemVOList);
+        orderVO.setOrderStatusName(Constant.OrderStatusEnum.codeOf(orderVO.getOrderStatus()).getValue());
+        return orderVO;
+    }
+
+    @Override
+    public PageInfo listForCustomer(Integer pageNo, Integer pageSize){
+        Integer userId=UserFilter.currentUser.getId();
+        PageHelper.startPage(pageNo,pageSize);
+        List<Order> orderList=orderMapper.selectForCustomer(userId);
+        List<OrderVO> orderVOList=orderListToOrderVOList(orderList);
+        PageInfo pageInfo=new PageInfo(orderList);
+        pageInfo.setList(orderVOList);
+        return pageInfo;
+    }
+
+    private List<OrderVO> orderListToOrderVOList(List<Order> orderList) {
+        List<OrderVO> orderVOList=new ArrayList();
+        for (int i = 0; i < orderList.size(); i++) {
+            Order order = orderList.get(i);
+            OrderVO orderVO=getOrderVO(order);
+            orderVOList.add(orderVO);
+        }
+        return orderVOList;
+    }
+
+    @Override
+    public void cancel(String orderNo){
+        Order order=orderMapper.selectByOrderNo(orderNo);
+        //查不到订单，报错
+        if (order == null) {
+            throw new HailinMallException(HailinMallExceptionEnum.NO_ORDER);
+        }
+        //订单存在则判断所属
+        Integer userId=UserFilter.currentUser.getId();
+        if (!order.getUserId().equals(userId)){
+            throw new HailinMallException(HailinMallExceptionEnum.NOT_YOUR_ORDER);
+        }
+        if (order.getOrderStatus().equals(Constant.OrderStatusEnum.NOT_PAY.getCode())){
+            order.setOrderStatus(Constant.OrderStatusEnum.CANCELED.getCode());
+            order.setEndTime(new Date());
+            orderMapper.updateByPrimaryKeySelective(order);
+        }else {
+            throw new HailinMallException(HailinMallExceptionEnum.WRONG_ORDER_STATUS);
+        }
+    }
+
+    @Override
+    public String qrcode(String orderNo){
+        ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request=requestAttributes.getRequest();
+        /**简单获取本机局域网ip,这样生成的二维码就可以使用连接同一个wifi的手机扫出来,适用于局域网
+         * try {
+            ip = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }*/
+        String address = ip + ":" + request.getLocalPort();
+        String payUrl="http://"+address+"/pay?orderNo="+orderNo;
+        try {
+            QRCodeGenerator.generateQRCodeImage(payUrl,350,350,Constant.FILE_UPLOAD_DIR+orderNo+".png");
+        } catch (WriterException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        String pngAddress="http://"+address+"/images/"+orderNo+".png";
+        return pngAddress;
+    }
+
+    @Override
+    public void pay(String orderNo){
+        Order order=orderMapper.selectByOrderNo(orderNo);
+        //查不到订单，报错
+        if (order == null) {
+            throw new HailinMallException(HailinMallExceptionEnum.NO_ORDER);
+        }
+        if (order.getOrderStatus()==Constant.OrderStatusEnum.NOT_PAY.getCode()){
+            order.setOrderStatus(Constant.OrderStatusEnum.PAID.getCode());
+            order.setPayTime(new Date());
+            orderMapper.updateByPrimaryKeySelective(order);
+        }else {
+            throw new HailinMallException(HailinMallExceptionEnum.WRONG_ORDER_STATUS);
+        }
+    }
+    @Override
+    public PageInfo listForAdmin(Integer pageNo, Integer pageSize){
+        PageHelper.startPage(pageNo,pageSize);
+        List<Order> orderList=orderMapper.selectAllForAdmin();
+        List<OrderVO> orderVOList=orderListToOrderVOList(orderList);
+        PageInfo pageInfo=new PageInfo(orderList);
+        pageInfo.setList(orderVOList);
+        return pageInfo;
+    }
+    @Override
+    public void delivered(String orderNo){
+        Order order=orderMapper.selectByOrderNo(orderNo);
+        //查不到订单，报错
+        if (order == null) {
+            throw new HailinMallException(HailinMallExceptionEnum.NO_ORDER);
+        }
+        if (order.getOrderStatus()==Constant.OrderStatusEnum.PAID.getCode()){
+            order.setOrderStatus(Constant.OrderStatusEnum.DELIVERED.getCode());
+            order.setDeliveryTime(new Date());
+            orderMapper.updateByPrimaryKeySelective(order);
+        }else {
+            throw new HailinMallException(HailinMallExceptionEnum.WRONG_ORDER_STATUS);
+        }
+    }
+    @Override
+    public void finish(String orderNo){
+        Order order=orderMapper.selectByOrderNo(orderNo);
+        //查不到订单，报错
+        if (order == null) {
+            throw new HailinMallException(HailinMallExceptionEnum.NO_ORDER);
+        }
+        //如果是普通用户，需要校验订单所属
+        if (!userService.checkAdminRole(UserFilter.currentUser)&&order.getUserId().equals(UserFilter.currentUser.getId())) {
+            throw new HailinMallException(HailinMallExceptionEnum.NOT_YOUR_ORDER);
+        }
+        //发货后可以完结订单
+        if (order.getOrderStatus()==Constant.OrderStatusEnum.DELIVERED.getCode()){
+            order.setOrderStatus(Constant.OrderStatusEnum.FINISHED.getCode());
+            order.setEndTime(new Date());
+            orderMapper.updateByPrimaryKeySelective(order);
+        }else {
+            throw new HailinMallException(HailinMallExceptionEnum.WRONG_ORDER_STATUS);
         }
     }
 }

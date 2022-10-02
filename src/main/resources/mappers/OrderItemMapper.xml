@@ -150,4 +150,8 @@
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=INTEGER}
   </update>
+  <select id="selectByOrderNo" parameterType="String" resultMap="BaseResultMap">
+    select <include refid="Base_Column_List"/> from hailin_mall_order_item
+    where order_no=#{oderNo}
+  </select>
 </mapper>

@@ -20,6 +20,9 @@ public enum HailinMallExceptionEnum {
     NOT_ENOUGH(10017,"库存不足"),
     CART_EMPTY(10018,"购物车已勾选商品为空"),
     NO_ENUM(10019,"未找到对应枚举"),
+    NO_ORDER(10020,"订单不存在"),
+    NOT_YOUR_ORDER(10021,"未在您的订单中找到"),
+    WRONG_ORDER_STATUS(10022,"订单状态不符"),
     SYSTEM_ERROR(20000,"系统异常");
     Integer code;//异常码
     String msg;//异常信息

@@ -1,5 +1,6 @@
 package com.hailin.mall.model.dao;
 
+import com.hailin.mall.model.pojo.Order;
 import com.hailin.mall.model.pojo.Product;
 import com.hailin.mall.model.query.ProductListQuery;
 import org.apache.ibatis.annotations.Param;
