@@ -8,6 +8,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class HailinMallWebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/admin/**").addResourceLocations("classpath:/static/admin/");//路径，会放在resource的static
         registry.addResourceHandler("/images/**").addResourceLocations("file:"+ Constant.FILE_UPLOAD_DIR);
         //路径文件还没有，暂时注释掉
         /**registry.addResourceHandler("swagger-ui.html")
